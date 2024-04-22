@@ -6,11 +6,12 @@
  * TL;DR - This is where all the tRPC server stuff is created and plugged in. The pieces you will
  * need to use are documented accordingly near the end.
  */
-import { initTRPC } from "@trpc/server";
+import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
 
 import { db } from "~/server/db";
+import { validateRequest } from "../validateAuth";
 
 /**
  * 1. CONTEXT
@@ -81,3 +82,61 @@ export const createTRPCRouter = t.router;
  * are logged in.
  */
 export const publicProcedure = t.procedure;
+
+export const enforceUserIsAuthenticated = t.middleware(async (opts) => {
+  try {
+    const result = await validateRequest();
+
+    if (!result.user || !result.session)
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "You must be admin",
+      });
+
+    return await opts.next({
+      ctx: {
+        ...opts.ctx,
+        user: result.user,
+        session: result.session,
+      },
+    });
+  } catch (error) {
+    if (error instanceof TRPCError) throw error;
+
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Failed to verify session token",
+    });
+  }
+});
+
+export const protectedProcedure = t.procedure.use(enforceUserIsAuthenticated);
+
+export const enforceUserIsAdmin = t.middleware(async (opts) => {
+  try {
+    const result = await validateRequest();
+
+    if (!result.user || !result.session || !result.user.isAdmin)
+      throw new TRPCError({
+        code: "UNAUTHORIZED",
+        message: "You must be admin",
+      });
+
+    return await opts.next({
+      ctx: {
+        ...opts.ctx,
+        user: result.user,
+        session: result.session,
+      },
+    });
+  } catch (error) {
+    if (error instanceof TRPCError) throw error;
+
+    throw new TRPCError({
+      code: "INTERNAL_SERVER_ERROR",
+      message: "Failed to verify session token",
+    });
+  }
+});
+
+export const adminProcedure = t.procedure.use(enforceUserIsAdmin);
