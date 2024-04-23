@@ -7,7 +7,7 @@ const adapter = new PrismaAdapter(db.session, db.user);
 export const lucia = new Lucia(adapter, {
   sessionCookie: {
     expires: false,
-    name: "movie_token",
+    name: "nextjs_lucia",
     attributes: {
       secure: false,
     },
